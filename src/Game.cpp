@@ -2,7 +2,10 @@
 #include "Constants.hpp"
 #include <raylib.h>
 
-Game::Game() { init(); }
+Game::Game()
+{
+    togglePause();
+}
 
 Game::~Game() {}
 
@@ -13,13 +16,6 @@ void Game::run()
         update();
         render();
     }
-}
-
-void Game::init()
-{
-    paused = true;
-    togglePause();
-    gameSpeed = INITIAL_GAME_SPEED;
 }
 
 void Game::togglePause()
@@ -48,7 +44,7 @@ void Game::update()
     {
         if (gameSpeed > 0.f)
         {
-            gameAcceleration = PAUSE_DECELLERATION;
+            gameAcceleration = G_PAUSE_DECELLERATION;
         }
         else
         {
@@ -60,11 +56,11 @@ void Game::update()
     {
         if (gameSpeed < pauseTargetSpeed)
         {
-            gameAcceleration = -PAUSE_DECELLERATION;
+            gameAcceleration = -G_PAUSE_DECELLERATION;
         }
         else
         {
-            gameAcceleration = GAME_CONSTANT_ACCELERATION;
+            gameAcceleration = G_CONSTANT_ACCELERATION;
         }
     }
 
@@ -74,6 +70,7 @@ void Game::update()
     // Update game objects by moving them left by displacement
     background.update(gameDisplacement * 0.9f); // Move background slightly slower for parallax effect
     obstacles.update(gameDisplacement);
+    player.update(deltaTime);
 }
 
 void Game::handleInput()
@@ -87,12 +84,15 @@ void Game::handleInput()
     // W,Space,↑ | A,← | D,→
     if (IsKeyPressed(KEY_W) || IsKeyPressed(KEY_SPACE) || IsKeyPressed(KEY_UP))
     {
+        player.jump();
     }
     if (IsKeyDown(KEY_A) || IsKeyDown(KEY_LEFT))
     {
+        player.moveLeft();
     }
     if (IsKeyDown(KEY_D) || IsKeyDown(KEY_RIGHT))
     {
+        player.moveRight();
     }
 }
 
@@ -104,6 +104,7 @@ void Game::render()
     // Draw background
     background.draw();
     obstacles.draw();
+    player.draw();
 
     DrawText(TextFormat("FPS: %i", GetFPS()), 10, 10, 20, BLACK);
     DrawText(TextFormat("Game Speed: %.2f", gameSpeed), 10, 30, 20, BLACK);
