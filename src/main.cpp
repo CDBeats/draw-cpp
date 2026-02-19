@@ -3,8 +3,8 @@
 int main()
 {
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
-    InitWindow(INITIAL_WINDOW_WIDTH, INITIAL_WINDOW_HEIGHT, "Draw!");
-    SetWindowMinSize(INITIAL_WINDOW_WIDTH, INITIAL_WINDOW_HEIGHT);
+    InitWindow(INITIAL_WINDOW, INITIAL_WINDOW, "Draw!");
+    SetWindowMinSize(INITIAL_WINDOW, INITIAL_WINDOW);
     SetTargetFPS(FRAMERATE);
     SetExitKey(KEY_NULL);
 

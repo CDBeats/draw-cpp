@@ -1,5 +1,6 @@
 #pragma once
 #include "raylib.h"
+#include "Constants.hpp"
 #include <vector>
 
 class Obstacles
@@ -22,11 +23,9 @@ public:
             BOTTOM_SHAFT = 3,
             COUNT = 4
         };
-        // Array of rectangles for the pipe parts
         Rectangle rects[COUNT];
     };
 
-    // Vector of all obstacles, each containing its own set of rects for the pipe parts
     std::vector<Pipes> obstacles;
 
 private:
@@ -36,9 +35,13 @@ private:
     float gapX;
     float centerY;
     float gapY;
-
+    Vector2 dims = {PIPE_HEAD_DIMS.x * INITIAL_WINDOW, PIPE_HEAD_DIMS.y *INITIAL_WINDOW};
     Texture2D pipeHead;
     Texture2D pipeShaft;
     Pipes stencil;
     Rectangle initialDrawRect;
+
+    // NEW: remember previous resolution so we can scale existing pipes on resize
+    float prevScreenWidth = 0.0f;
+    float prevScreenHeight = 0.0f;
 };

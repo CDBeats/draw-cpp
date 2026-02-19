@@ -12,77 +12,111 @@ Obstacles::Obstacles()
     pipeShaft = LoadTexture("assets/pipe_shaft.png");
     SetTextureFilter(pipeShaft, TEXTURE_FILTER_BILINEAR);
 
-    // Set up the stencil
-    positionRects(INITIAL_WINDOW_WIDTH, INITIAL_WINDOW_HEIGHT);
+    // Initial stencil + first pipe
+    positionRects(INITIAL_WINDOW, INITIAL_WINDOW);
+    obstacles.push_back(stencil); // <-- now explicit (was hidden inside positionRects)
+
+    prevScreenWidth = INITIAL_WINDOW;
+    prevScreenHeight = INITIAL_WINDOW;
 }
 
-// Unload textures
 Obstacles::~Obstacles()
 {
     UnloadTexture(pipeHead);
     UnloadTexture(pipeShaft);
 }
 
-// Reset obstacles and reposition the stencil rectangles
+// Now ONLY configures the stencil template + spawn parameters.
+// Does NOT push anything to obstacles (cleaner + fixes old double-spawn bug).
 void Obstacles::positionRects(float right, float bottom)
 {
-    // Useful when resizing obstacles.clear();
-
     startX = right;
-    // Randomize the stencil's centerY
+
+    // Randomize the next pipe's vertical position
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_real_distribution<float> dist(0.3f * right, 0.6f * bottom);
     centerY = dist(gen);
+
     gapX = right * 0.5f;
     gapY = bottom * 0.125f;
 
-    // Set x positions and widths (same for all rects)
+    // x / width (same for all parts)
     for (int i = 0; i < Pipes::COUNT; i++)
     {
-        stencil.rects[i].x = startX;               // All start at the same position
-        stencil.rects[i].width = PIPE_HEAD_DIMS.x; // All images have the same width
+        stencil.rects[i].x = startX;
+        stencil.rects[i].width = dims.x;
     }
 
-    // Set y positions
-    stencil.rects[Pipes::TOP_HEAD].y = centerY - gapY - PIPE_HEAD_DIMS.y;
+    // y positions
+    stencil.rects[Pipes::TOP_HEAD].y = centerY - gapY - dims.y;
     stencil.rects[Pipes::BOTTOM_HEAD].y = centerY + gapY;
     stencil.rects[Pipes::TOP_SHAFT].y = 0.f;
-    stencil.rects[Pipes::BOTTOM_SHAFT].y = centerY + gapY + PIPE_HEAD_DIMS.y - 1.0f;
+    stencil.rects[Pipes::BOTTOM_SHAFT].y = centerY + gapY + dims.y - 1.0f;
 
-    // Set heights
-    stencil.rects[Pipes::TOP_HEAD].height = PIPE_HEAD_DIMS.y;
-    stencil.rects[Pipes::BOTTOM_HEAD].height = PIPE_HEAD_DIMS.y;
-    stencil.rects[Pipes::TOP_SHAFT].height = centerY - gapY - PIPE_HEAD_DIMS.y + 1.0f;
-    stencil.rects[Pipes::BOTTOM_SHAFT].height = bottom - (centerY + gapY + PIPE_HEAD_DIMS.y - 1.0f);
-
-    // After repositioning, add the stencil as the first obstacle
-    obstacles.push_back(stencil);
+    // heights
+    stencil.rects[Pipes::TOP_HEAD].height = dims.y;
+    stencil.rects[Pipes::BOTTOM_HEAD].height = dims.y;
+    stencil.rects[Pipes::TOP_SHAFT].height = centerY - gapY - dims.y + 1.0f;
+    stencil.rects[Pipes::BOTTOM_SHAFT].height = bottom - (centerY + gapY + dims.y - 1.0f);
 }
 
 void Obstacles::update(float displacement)
 {
-    // Reposition stencil if window resized
-    if (IsWindowResized())
+    float currW = static_cast<float>(GetScreenWidth());
+    float currH = static_cast<float>(GetScreenHeight());
+
+    // Always keep pipe width/height scaled to current screen height (same as Player)
+    dims = {PIPE_HEAD_DIMS.x * currH, PIPE_HEAD_DIMS.y * currH};
+
+    bool resized = IsWindowResized() || prevScreenHeight == 0.0f;
+
+    if (resized)
     {
-        positionRects(static_cast<float>(GetScreenWidth()), static_cast<float>(GetScreenHeight()));
+        if (prevScreenHeight != 0.0f) // not the very first frame
+        {
+            float ratioW = currW / prevScreenWidth;
+            float ratioH = currH / prevScreenHeight;
+
+            // Scale EVERY existing pipe so it stays in the exact same relative spot
+            for (auto &obstacle : obstacles)
+            {
+                for (int i = 0; i < Pipes::COUNT; i++)
+                {
+                    obstacle.rects[i].x *= ratioW;
+                    obstacle.rects[i].width *= ratioW;
+                    obstacle.rects[i].y *= ratioH;
+                    obstacle.rects[i].height *= ratioH;
+                }
+            }
+
+            // Keep spawn logic consistent
+            startX *= ratioW;
+        }
+
+        // Update stencil + spawn parameters for the new resolution (new random centerY)
+        positionRects(currW, currH);
     }
 
-    // Move the pipes by displacement
-    for (auto &obstacle : obstacles) // for every obstacle group in the vector of obstacles
+    prevScreenWidth = currW;
+    prevScreenHeight = currH;
+
+    // Move pipes
+    for (auto &obstacle : obstacles)
     {
-        for (int i = 0; i < Pipes::COUNT; i++) // For every rect in each obstacle group
+        for (int i = 0; i < Pipes::COUNT; i++)
         {
             obstacle.rects[i].x -= displacement;
         }
     }
 
-    // If the most recently added pipe has moved past the startX - gapX threshold, add a new pipe
-    if (obstacles.back().rects[Pipes::TOP_HEAD].x < startX - gapX)
+    // Spawn new pipe when the last one has scrolled far enough
+    if (!obstacles.empty() && obstacles.back().rects[Pipes::TOP_HEAD].x < startX - gapX)
     {
-        positionRects(static_cast<float>(GetScreenWidth()), static_cast<float>(GetScreenHeight()));
-
-        // Copy the stencil onto the obstacles vector
+        if (!resized) // avoid re-randomising on the resize frame
+        {
+            positionRects(currW, currH);
+        }
         obstacles.push_back(stencil);
     }
 
@@ -95,26 +129,17 @@ void Obstacles::update(float displacement)
 
 void Obstacles::draw()
 {
-    /*// Draw stencil (only for debugging)
-    for (int i = 0; i < Pipes::COUNT; i++)
-    {
-        Texture2D &tex = (i < Pipes::TOP_SHAFT) ? pipeHead : pipeShaft;
-        Rectangle src = (i == Pipes::TOP_HEAD) ? Rectangle{0.f, (float)pipeHead.height, (float)pipeHead.width, -(float)pipeHead.height}
-                                               : Rectangle{0.f, 0.f, (float)tex.width, (float)tex.height};
-
-        DrawTexturePro(tex, src, stencil.rects[i], {0.f, 0.f}, 0.f, BLACK);
-    }*/
-
-    // For each pipe texture used, define if it needs to be flipped
     Texture2D textures[Pipes::COUNT] = {pipeHead, pipeHead, pipeShaft, pipeShaft};
-    bool flipTop[Pipes::COUNT] = {true, false, false, false}; // Only top pipe flips
+    bool flip[Pipes::COUNT] = {true, false, false, false};
 
     for (auto &pipeGroup : obstacles)
     {
         for (int i = 0; i < Pipes::COUNT; i++)
         {
             DrawTexturePro(textures[i],
-                           {0.f, 0.f, (float)textures[i].width, flipTop[i] ? -(float)textures[i].height : (float)textures[i].height},
+                           {0.f, 0.f,
+                            (float)textures[i].width,
+                            flip[i] ? -(float)textures[i].height : (float)textures[i].height},
                            pipeGroup.rects[i],
                            {0.f, 0.f}, 0.f, WHITE);
         }

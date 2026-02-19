@@ -4,7 +4,8 @@
 
 Game::Game()
 {
-    togglePause();
+    pause();
+    gameSpeed = G_INITIAL_SPEED * INITIAL_WINDOW;
 }
 
 Game::~Game() {}
@@ -18,25 +19,49 @@ void Game::run()
     }
 }
 
-void Game::togglePause()
+void Game::pause()
 {
-    if ((!paused && gameSpeed < pauseTargetSpeed) || (paused && gameSpeed > 0.f))
-        return; // Ignore toggle while decelerating / rebounding
+    if (gameSpeed < pauseTargetSpeed)
+        return;
+    pauseTargetSpeed = gameSpeed;
+    paused = true;
+}
 
-    paused = !paused;
+void Game::unpause()
+{
+    if (gameSpeed > 0.f)
+        return;
 
-    if (paused)
+    paused = false;
+}
+
+void Game::handleResize()
+{
+    if (IsWindowResized())
     {
-        pauseTargetSpeed = gameSpeed; // store the speed at the moment of pause
+        pause();
+        int w = GetScreenWidth();
+        int h = GetScreenHeight();
+
+        if (previousWidth != w)
+            SetWindowSize(w, w);
+        if (previousHeight != h || IsWindowMaximized())
+            SetWindowSize(h, h);
+        pauseTargetSpeed /= previousHeight;
+        pauseTargetSpeed *= GetScreenHeight();
+
+        previousWidth = GetScreenWidth();
+        previousHeight = GetScreenHeight();
     }
 }
 
 void Game::update()
 {
     handleInput();
+    handleResize();
 
     // Get time elapsed since last frame seconds (capped to avoid large jumps on window resize)
-    float deltaTime = std::min(GetFrameTime(), 1.0f / FRAMERATE);
+    float deltaTime = GetFrameTime();
     float gameAcceleration = 0.f;
     float gameDisplacement = 0.f;
 
@@ -44,33 +69,34 @@ void Game::update()
     {
         if (gameSpeed > 0.f)
         {
-            gameAcceleration = G_PAUSE_DECELLERATION;
+            gameAcceleration = G_PAUSE_DECELLERATION * GetScreenHeight(); // decelerate
         }
         else
         {
             gameSpeed = 0.f;
         }
-        // Update pause screen
     }
-    else
+    else // running
     {
         if (gameSpeed < pauseTargetSpeed)
         {
-            gameAcceleration = -G_PAUSE_DECELLERATION;
+            gameAcceleration = -G_PAUSE_DECELLERATION * GetScreenHeight(); // recover to pause speed
         }
         else
         {
-            gameAcceleration = G_CONSTANT_ACCELERATION;
+            gameAcceleration = G_CONSTANT_ACCELERATION * GetScreenHeight();
         }
     }
 
+    gameSpeed /= previousHeight;
+    gameSpeed *= GetScreenHeight();
     gameSpeed += gameAcceleration * deltaTime;
     // Calculate displacement this frame in pixels
     gameDisplacement = gameSpeed * deltaTime;
     // Update game objects by moving them left by displacement
     background.update(gameDisplacement * 0.9f); // Move background slightly slower for parallax effect
     obstacles.update(gameDisplacement);
-    player.update(deltaTime);
+    player.update(deltaTime, gameSpeed);
 }
 
 void Game::handleInput()
@@ -78,7 +104,10 @@ void Game::handleInput()
     // Quit the game when ESC is pressed
     if (IsKeyPressed(KEY_ESCAPE)) // Detect once per press
     {
-        togglePause();
+        if (!paused)
+            pause();
+        else
+            unpause();
     }
 
     // W,Space,↑ | A,← | D,→
@@ -88,11 +117,11 @@ void Game::handleInput()
     }
     if (IsKeyDown(KEY_A) || IsKeyDown(KEY_LEFT))
     {
-        player.moveLeft();
+        player.move(left);
     }
     if (IsKeyDown(KEY_D) || IsKeyDown(KEY_RIGHT))
     {
-        player.moveRight();
+        player.move(right);
     }
 }
 

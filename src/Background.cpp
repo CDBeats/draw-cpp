@@ -4,7 +4,7 @@
 
 Background::Background()
 {
-    tile = {INITIAL_WINDOW_WIDTH / (NUM_RECTS * 0.5f), INITIAL_WINDOW_HEIGHT * 0.5f};
+    tile = {INITIAL_WINDOW / (NUM_RECTS * 0.5f), INITIAL_WINDOW * 0.5f};
     // Initialize rectangles to fill the screen in a 2x2 grid
     for (int i = 0; i < NUM_RECTS; i++)
     {
@@ -19,7 +19,7 @@ void Background::update(float displacement)
     // Update tile dimensions if window is resized
     if (IsWindowResized())
     {
-        tile = {GetScreenWidth() / (NUM_RECTS * 0.5f), GetScreenHeight() * 0.5f};
+        tile = {GetScreenHeight() * 0.5f, GetScreenHeight() * 0.5f};
     }
 
     // Move the leftmost rectangle
