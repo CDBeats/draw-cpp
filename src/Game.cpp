@@ -2,11 +2,7 @@
 #include "Constants.hpp"
 #include <raylib.h>
 
-Game::Game()
-{
-    pause();
-    gameSpeed = G_INITIAL_SPEED * INITIAL_WINDOW;
-}
+Game::Game() { pause(); }
 
 Game::~Game() {}
 
@@ -21,18 +17,37 @@ void Game::run()
 
 void Game::pause()
 {
-    if (gameSpeed < pauseTargetSpeed)
+    if (timeScale > 1.f)
         return;
-    pauseTargetSpeed = gameSpeed;
     paused = true;
 }
 
 void Game::unpause()
 {
-    if (gameSpeed > 0.f)
+    timeScale = 10.f;
+    if (timeScale < 2.f)
         return;
 
     paused = false;
+}
+
+void Game::handlePause()
+{
+    // Pause logic manipulates deltaTime
+    if (paused)
+    {
+        if (timeScale < 10.f)
+            timeScale += 0.005f;
+        else
+            timeScale = 100000.f;
+    }
+    else
+    {
+        if (timeScale > 1.f)
+            timeScale -= 0.005f;
+        else
+            timeScale = 1.f;
+    }
 }
 
 void Game::handleResize()
@@ -47,8 +62,6 @@ void Game::handleResize()
             SetWindowSize(w, w);
         if (previousHeight != h || IsWindowMaximized())
             SetWindowSize(h, h);
-        pauseTargetSpeed /= previousHeight;
-        pauseTargetSpeed *= GetScreenHeight();
 
         previousWidth = GetScreenWidth();
         previousHeight = GetScreenHeight();
@@ -59,44 +72,16 @@ void Game::update()
 {
     handleInput();
     handleResize();
+    handlePause();
 
-    // Get time elapsed since last frame seconds (capped to avoid large jumps on window resize)
-    float deltaTime = GetFrameTime();
-    float gameAcceleration = 0.f;
-    float gameDisplacement = 0.f;
+    deltaTime = GetFrameTime();
+    gameSpeed += gameAcceleration * deltaTime / timeScale;
+    gameDisplacement = gameSpeed * deltaTime / timeScale;
 
-    if (paused)
-    {
-        if (gameSpeed > 0.f)
-        {
-            gameAcceleration = G_PAUSE_DECELLERATION * GetScreenHeight(); // decelerate
-        }
-        else
-        {
-            gameSpeed = 0.f;
-        }
-    }
-    else // running
-    {
-        if (gameSpeed < pauseTargetSpeed)
-        {
-            gameAcceleration = -G_PAUSE_DECELLERATION * GetScreenHeight(); // recover to pause speed
-        }
-        else
-        {
-            gameAcceleration = G_CONSTANT_ACCELERATION * GetScreenHeight();
-        }
-    }
-
-    gameSpeed /= previousHeight;
-    gameSpeed *= GetScreenHeight();
-    gameSpeed += gameAcceleration * deltaTime;
-    // Calculate displacement this frame in pixels
-    gameDisplacement = gameSpeed * deltaTime;
-    // Update game objects by moving them left by displacement
-    background.update(gameDisplacement * 0.9f); // Move background slightly slower for parallax effect
+    // Update game objects
+    background.update(gameDisplacement * 0.8f);
     obstacles.update(gameDisplacement);
-    player.update(deltaTime, gameSpeed);
+    player.update(deltaTime / timeScale, gameSpeed);
 }
 
 void Game::handleInput()
